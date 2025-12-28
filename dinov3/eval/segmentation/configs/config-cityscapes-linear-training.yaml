@@ -1,0 +1,60 @@
+# Config for Cityscapes, linear training (adapted from ADE20K)
+
+bs: 16                 # Increased from 2; linear probing is memory efficient
+n_gpus: 1             # Adjusted for your single GPU setup
+metric_to_save: 'mIoU'
+model_dtype: FLOAT32  # DINOv3 standard for stable linear training
+
+scheduler:
+  total_iter: 10000   # Standard for Cityscapes linear probing
+  type: 'WarmupOneCycleLR'
+  constructor_kwargs:
+    warmup_iters: 1500
+    warmup_ratio: 1e-6
+    final_div_factor: .inf
+    pct_start: 0
+    anneal_strategy: 'cos'
+    use_beta1: False
+    update_momentum: False
+
+optimizer:
+  lr : 1e-3            # Standard 1e-3 for linear probing
+  beta1: 0.9
+  beta2: 0.999
+  weight_decay: 1e-3
+  gradient_clip: 'inf'
+
+datasets:
+  root: "../../Datasets/Cityscapes" # RELATIVE PATH TO AVOID C:
+  train: "Cityscapes:split=TRAIN"
+  val: "Cityscapes:split=VAL"
+
+train:
+  diceloss_weight: 0.0
+  celoss_weight: 1.0
+
+decoder_head:
+  type: "linear"
+  backbone_out_layers: LAST  # DINOv3 often uses LAST (or concat last 4)
+  use_cls_token: False
+  use_batchnorm: True
+  use_backbone_norm: True
+  num_classes: 19            # CITYSCAPES EVAL CLASSES
+
+transforms:
+  train:
+    img_size: [512, 1024]    # MAINTAIN CITYSCAPES 1:2 ASPECT RATIO
+    random_img_size_ratio_range: [0.5, 2.0]
+    crop_size: [512, 1024]   # Linear probing doesn't need small square crops
+    flip_prob: 0.5
+  eval:
+    img_size: [512, 1024]
+
+eval:
+  compute_metric_per_image: False
+  reduce_zero_label: False   # Set to FALSE for Cityscapes (ADE20K has a 0-background to ignore)
+  mode: "slide"              # Keeps sliding window eval for high res
+  crop_size: 512
+  stride: 341
+  eval_interval: 2000        # More frequent evals for faster feedback
+  use_tta: False
