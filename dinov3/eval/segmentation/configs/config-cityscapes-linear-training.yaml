@@ -1,12 +1,12 @@
 # Config for Cityscapes, linear training (adapted from ADE20K)
 
-bs: 16                 # Increased from 2; linear probing is memory efficient
-n_gpus: 1             # Adjusted for your single GPU setup
+bs: 8                 # Increased from 2; linear probing is memory efficient
+n_gpus: 2            # Adjusted for your single GPU setup
 metric_to_save: 'mIoU'
 model_dtype: FLOAT32  # DINOv3 standard for stable linear training
 
 scheduler:
-  total_iter: 10000   # Standard for Cityscapes linear probing
+  total_iter: 40000
   type: 'WarmupOneCycleLR'
   constructor_kwargs:
     warmup_iters: 1500
@@ -25,7 +25,7 @@ optimizer:
   gradient_clip: 'inf'
 
 datasets:
-  root: "../../Datasets/Cityscapes" # RELATIVE PATH TO AVOID C:
+  root: "/home/shai/datasets/cityscapes " # RELATIVE PATH TO AVOID C:
   train: "Cityscapes:split=TRAIN"
   val: "Cityscapes:split=VAL"
 
@@ -54,7 +54,7 @@ eval:
   compute_metric_per_image: False
   reduce_zero_label: False   # Set to FALSE for Cityscapes (ADE20K has a 0-background to ignore)
   mode: "slide"              # Keeps sliding window eval for high res
-  crop_size: 512
-  stride: 341
-  eval_interval: 2000        # More frequent evals for faster feedback
+  crop_size: [512, 1024]
+  stride: [341, 682]
+  eval_interval: 2000
   use_tta: False
