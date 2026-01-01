@@ -35,6 +35,7 @@ def evaluate_segmentation_model(
     decoder_head_type,
     num_classes,
     autocast_dtype,
+    reduce_zero_label,
 ):
     segmentation_model = segmentation_model.to(device)
     segmentation_model.eval()
@@ -63,7 +64,7 @@ def evaluate_segmentation_model(
             aggregated_preds[0],
             gt,
             num_classes=num_classes,
-            reduce_zero_label=True,
+            reduce_zero_label=reduce_zero_label,
         )
         all_metric_values.append(intersect_and_union)
         del img, gt, aggregated_preds, intersect_and_union
