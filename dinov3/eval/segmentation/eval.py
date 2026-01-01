@@ -53,8 +53,8 @@ def evaluate_segmentation_model(
                 decoder_head_type=decoder_head_type,
                 rescale_to=gt.shape[-2:],
                 n_output_channels=num_classes,
-                crop_size=(eval_res, eval_res),
-                stride=(eval_stride, eval_stride),
+                crop_size=eval_res if isinstance(eval_res, (tuple, list)) else (eval_res, eval_res),
+                stride=eval_stride if isinstance(eval_stride, (tuple, list)) else (eval_stride, eval_stride),
                 apply_horizontal_flip=(img_idx and img_idx >= len(batch_img) / 2),
                 output_activation=partial(torch.nn.functional.softmax, dim=1),
             )
