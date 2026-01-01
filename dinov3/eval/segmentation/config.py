@@ -99,8 +99,8 @@ class EvalConfig:
     compute_metric_per_image: bool = False
     reduce_zero_label: bool = True  # For ADE20K, ignores 0 label (=background/unlabeled)
     mode: str = "slide"
-    crop_size: int | None = 512
-    stride: int | None = 341
+    crop_size: tuple[int] | None = (512, 512)
+    stride: tuple[int] | None = (341, 341)
     eval_interval: int = 40000
     use_tta: bool = False  # apply test-time augmentation at evaluation time
 
