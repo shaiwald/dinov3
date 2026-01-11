@@ -36,6 +36,11 @@ def _load_cityscapes_paths(root: str, split: _Split) -> Tuple[List[str], List[st
     if not os.path.exists(img_root):
         raise FileNotFoundError(f"Cityscapes images not found at: {img_root}")
 
+    # CONFIG: Which fog intensity to use?
+    # Options usually: "beta_0.005", "beta_0.01", "beta_0.02"
+    # If you want ALL of them, set this to None (but this duplicates validation scenes!)
+    TARGET_BETA = "beta_0.02"
+
     # Walk through the city folders (e.g., aachen, bochum)
     for city in sorted(os.listdir(img_root)):
         city_img_dir = os.path.join(img_root, city)
@@ -45,16 +50,32 @@ def _load_cityscapes_paths(root: str, split: _Split) -> Tuple[List[str], List[st
             continue
 
         for file_name in sorted(os.listdir(city_img_dir)):
-            if file_name.endswith("_leftImg8bit.png"):
-                # Target: frankfurt_..._gtFine_labelTrainIds.png
-                target_name = file_name.replace("_leftImg8bit.png", "_gtFine_labelTrainIds.png")
-                full_tgt_path = os.path.join(city_tgt_dir, target_name)
+            # 1. Check if it's a valid image file
+            if not file_name.endswith(".png"):
+                continue
 
-                if os.path.exists(full_tgt_path):
-                    # Store relative paths
-                    full_img_path = os.path.join(city_img_dir, file_name)
-                    image_paths.append(os.path.relpath(full_img_path, root))
-                    target_paths.append(os.path.relpath(full_tgt_path, root))
+            # 2. Filter for specific Fog Intensity (if using Foggy Cityscapes)
+            if "foggy" in file_name and TARGET_BETA and (TARGET_BETA not in file_name):
+                continue
+
+            # 3. Determine the unique ID of the image (e.g., frankfurt_000000_000294)
+            # Standard: frankfurt_000000_000294_leftImg8bit.png
+            # Foggy:    frankfurt_000000_000294_leftImg8bit_foggy_beta_0.01.png
+            if "_leftImg8bit" in file_name:
+                unique_id = file_name.split("_leftImg8bit")[0]
+            else:
+                continue  # Skip if naming convention is totally unknown
+
+            # 4. Construct the Ground Truth filename
+            # The GT is ALWAYS standard (never foggy), e.g., frankfurt_..._gtFine_labelTrainIds.png
+            target_name = f"{unique_id}_gtFine_labelTrainIds.png"
+            full_tgt_path = os.path.join(city_tgt_dir, target_name)
+
+            if os.path.exists(full_tgt_path):
+                # Store relative paths
+                full_img_path = os.path.join(city_img_dir, file_name)
+                image_paths.append(os.path.relpath(full_img_path, root))
+                target_paths.append(os.path.relpath(full_tgt_path, root))
 
     return image_paths, target_paths
 
