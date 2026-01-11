@@ -58,3 +58,8 @@ eval:
   stride: [341, 682]
   eval_interval: 2000
   use_tta: False
+
+wandb:
+  project: "dinov3-cityscapes-linear"
+  name: "vitl16-test-wandb"
+  enabled: True

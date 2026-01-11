@@ -8,13 +8,14 @@ import logging
 import numpy as np
 import os
 import random
+import wandb
 
 import torch
 import torch.distributed as dist
 
 from dinov3.data import DatasetWithEnumeratedTargets, SamplerType, make_data_loader, make_dataset
 import dinov3.distributed as distributed
-from dinov3.eval.segmentation.eval import evaluate_segmentation_model
+from dinov3.eval.segmentation.eval import evaluate_segmentation_model, is_main_process, colorize_mask
 from dinov3.eval.segmentation.loss import MultiSegmentationLoss
 from dinov3.eval.segmentation.metrics import SEGMENTATION_METRICS
 from dinov3.eval.segmentation.models import build_segmentation_decoder
@@ -23,6 +24,16 @@ from dinov3.eval.segmentation.transforms import make_segmentation_eval_transform
 from dinov3.logging import MetricLogger, SmoothedValue
 
 logger = logging.getLogger("dinov3")
+
+
+# Standard Cityscapes 19-class palette
+CITYSCAPES_PALETTE = np.asarray([
+    [128, 64, 128], [244, 35, 232], [70, 70, 70], [102, 102, 156],
+    [190, 153, 153], [153, 153, 153], [250, 170, 30], [220, 220, 0],
+    [107, 142, 35], [152, 251, 152], [70, 130, 180], [220, 20, 60],
+    [255, 0, 0], [0, 0, 142], [0, 0, 70], [0, 60, 100],
+    [0, 80, 100], [0, 0, 230], [119, 11, 32]
+], dtype=np.uint8)
 
 
 class InfiniteDataloader:
@@ -90,6 +101,10 @@ def validate(
         reduce_zero_label,
     )
     logger.info(f"Step {global_step}: {new_metric_values_dict}")
+    # Log Metrics to WandB
+    if is_main_process():
+        wandb.log({f"Val/{k}": v for k, v in new_metric_values_dict.items()})
+
     # `segmentation_model` is a module list of [backbone, decoder]
     # Only put the head in train mode
     segmentation_model.module.segmentation_model[1].train()
@@ -126,6 +141,36 @@ def train_step(
     if gt.shape[-2:] != pred.shape[-2:]:
         pred = torch.nn.functional.interpolate(input=pred, size=gt.shape[-2:], mode="bilinear", align_corners=False)
     loss = criterion(pred, gt)
+
+    # --- WANDB VISUALIZATION START (Every 500 steps) ---
+    if is_main_process() and global_step % 500 == 0:
+        with torch.no_grad():
+            # Get the first image in the batch
+            img_vis = batch_img[0].detach().float().cpu().permute(1, 2, 0).numpy()
+            # Denormalize (Approximate for ImageNet stats: mean=[0.485...], std=[0.229...])
+            img_vis = (img_vis * np.array([0.229, 0.224, 0.225])) + np.array([0.485, 0.456, 0.406])
+            img_vis = np.clip(img_vis * 255, 0, 255).astype(np.uint8)
+
+            # Process Prediction (Argmax) & Ground Truth
+            pred_mask = torch.argmax(pred[0], dim=0).detach().cpu().numpy()
+            gt_mask = gt[0].detach().cpu().numpy()
+
+            wandb.log({
+                "Train/Example": wandb.Image(
+                    img_vis,
+                    caption=f"Step {global_step}",
+                    masks={
+                        "predictions": {"mask_data": pred_mask, "class_labels": {i: f"{i}" for i in range(19)}},
+                        "ground_truth": {"mask_data": gt_mask, "class_labels": {i: f"{i}" for i in range(19)}}
+                    }
+                ),
+                # Log a colored composite for easier quick viewing
+                "Train/Composite": wandb.Image(
+                    np.concatenate([img_vis, colorize_mask(gt_mask), colorize_mask(pred_mask)], axis=1),
+                    caption="Img | GT | Pred"
+                )
+            })
+    # --- WANDB VISUALIZATION END ---
 
     # d) optimization
     if scaler is not None:
@@ -281,6 +326,14 @@ def train_segmentation(
             config.model_dtype.autocast_dtype,
             global_step,
         )
+
+        if is_main_process() and global_step % 10 == 0:
+            wandb.log({
+                "Train/Loss": loss.item(),
+                "Train/LR": optimizer.param_groups[0]["lr"],
+                "Train/Step": global_step
+            })
+        # ----------------------
         global_step += 1
         metric_logger.update(loss=loss)
         if global_step % config.eval.eval_interval == 0:

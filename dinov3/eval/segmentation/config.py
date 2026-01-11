@@ -6,7 +6,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from omegaconf import MISSING
-from typing import Any
+from typing import Any, Optional
 
 import torch
 
@@ -106,6 +106,12 @@ class EvalConfig:
 
 
 @dataclass
+class WandbConfig:
+    project: str = "dinov3-segmentation"
+    name: Optional[str] = None
+    enabled: bool = True
+
+@dataclass
 class SegmentationConfig:
     model: ModelConfig | None = None  # config of the DINOv3 backbone
     bs: int = 2
@@ -121,6 +127,7 @@ class SegmentationConfig:
     transforms: TransformConfig = field(default_factory=TransformConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     eval: EvalConfig = field(default_factory=EvalConfig)
+    wandb: WandbConfig = field(default_factory=WandbConfig)
     # Additional Parameters
     output_dir: str | None = None
     load_from: str | None = None  # path to .pt checkpoint to resume training from or evaluate from

@@ -8,6 +8,7 @@ from omegaconf import OmegaConf
 import os
 import sys
 from typing import Any
+import wandb
 
 from dinov3.eval.segmentation.config import SegmentationConfig
 from dinov3.eval.segmentation.eval import test_segmentation
@@ -15,7 +16,7 @@ from dinov3.eval.segmentation.train import train_segmentation
 from dinov3.eval.helpers import args_dict_to_dataclass, cli_parser, write_results
 from dinov3.eval.setup import load_model_and_context
 from dinov3.run.init import job_context
-
+import dinov3.distributed as distributed
 
 logger = logging.getLogger("dinov3")
 
@@ -50,6 +51,21 @@ def benchmark_launcher(eval_args: dict[str, object]) -> dict[str, Any]:
         )
     else:  # either using default values, or only adding some args to the command line
         dataclass_config, output_dir = args_dict_to_dataclass(eval_args=eval_args, config_dataclass=SegmentationConfig)
+
+    # --- WANDB INITIALIZATION ---
+    # Only run on the main process (Rank 0) and if enabled in config
+    if (not distributed.is_enabled() or distributed.get_rank() == 0) and dataclass_config.wandb.enabled:
+        wandb.init(
+            project=dataclass_config.wandb.project,
+            name=dataclass_config.wandb.name,
+            # Log the entire config tree to WandB for reproducibility
+            # config=OmegaConf.to_container(dataclass_config, resolve=True)
+            config=OmegaConf.to_container(OmegaConf.structured(dataclass_config), resolve=True),
+            resume="allow"
+        )
+
+    # ------------------------------------
+
     backbone = None
     if dataclass_config.model:
         backbone, _ = load_model_and_context(dataclass_config.model, output_dir=output_dir)

@@ -19,6 +19,27 @@ from dinov3.eval.segmentation.models import build_segmentation_decoder
 from dinov3.eval.segmentation.transforms import make_segmentation_eval_transforms
 from dinov3.hub.segmentors import dinov3_vit7b16_ms
 from dinov3.logging import MetricLogger
+import wandb
+import numpy as np
+
+# Cityscapes Palette
+CITYSCAPES_PALETTE = np.asarray([
+    [128, 64, 128], [244, 35, 232], [70, 70, 70], [102, 102, 156],
+    [190, 153, 153], [153, 153, 153], [250, 170, 30], [220, 220, 0],
+    [107, 142, 35], [152, 251, 152], [70, 130, 180], [220, 20, 60],
+    [255, 0, 0], [0, 0, 142], [0, 0, 70], [0, 60, 100],
+    [0, 80, 100], [0, 0, 230], [119, 11, 32]
+], dtype=np.uint8)
+
+def colorize_mask(mask):
+    h, w = mask.shape
+    color_img = np.zeros((h, w, 3), dtype=np.uint8)
+    for class_id in range(len(CITYSCAPES_PALETTE)):
+        color_img[mask == class_id] = CITYSCAPES_PALETTE[class_id]
+    return color_img
+
+def is_main_process():
+    return not distributed.is_enabled() or distributed.get_rank() == 0
 
 logger = logging.getLogger("dinov3")
 
@@ -42,7 +63,7 @@ def evaluate_segmentation_model(
     all_metric_values = []
     metric_logger = MetricLogger(delimiter="  ")
 
-    for batch_img, (_, gt) in metric_logger.log_every(test_dataloader, 10, header="Validation: "):
+    for i, (batch_img, (_, gt)) in enumerate(metric_logger.log_every(test_dataloader, 10, header="Validation: ")):
         batch_img = [img.to(device).to(dtype=autocast_dtype) for img in batch_img]
         gt = gt.to(device)[0]
         aggregated_preds = torch.zeros(1, num_classes, gt.shape[-2], gt.shape[-1])
@@ -60,6 +81,40 @@ def evaluate_segmentation_model(
                 output_activation=partial(torch.nn.functional.softmax, dim=1),
             )
         aggregated_preds = (aggregated_preds / len(batch_img)).argmax(dim=1, keepdim=True).to(device)
+
+        # =========================================================
+        # === WANDB VISUALIZATION ===
+        # =========================================================
+        # Condition: Only Main Process AND Only the First Batch (i == 0)
+        if is_main_process() and i == 0:
+            try:
+                # 1. Prepare Image
+                # batch_img[0] is the first scale tensor: (1, 3, H, W)
+                # We take [0] again to get (3, H, W)
+                img_vis = batch_img[0][0].float().detach().cpu().permute(1, 2, 0).numpy()
+                img_vis = (img_vis * np.array([0.229, 0.224, 0.225])) + np.array([0.485, 0.456, 0.406])
+                img_vis = np.clip(img_vis * 255, 0, 255).astype(np.uint8)
+
+                # 2. Prepare GT & Preds
+                # .squeeze() ensures we remove singleton dimensions (1, H, W) -> (H, W)
+                # preventing the "too many values to unpack" error
+                gt_vis = gt.detach().cpu().squeeze().numpy()
+                pred_vis = aggregated_preds.detach().cpu().squeeze().numpy()
+
+                wandb.log({
+                    "Val/Sliding_Window_Result": wandb.Image(
+                        np.concatenate([
+                            img_vis,
+                            colorize_mask(gt_vis),
+                            colorize_mask(pred_vis)
+                        ], axis=1),
+                        caption=f"Epoch Validation - Batch {i}: Input | GT | Pred"
+                    )
+                })
+            except Exception as e:
+                logger.warning(f"Visualization failed: {e}")
+        # =========================================================
+
         intersect_and_union = calculate_intersect_and_union(
             aggregated_preds[0],
             gt,
