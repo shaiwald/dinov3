@@ -200,4 +200,5 @@ def test_segmentation(backbone, config):
         decoder_head_type=config.decoder_head.type,
         num_classes=config.decoder_head.num_classes,
         autocast_dtype=config.model_dtype.autocast_dtype,
+        reduce_zero_label=config.eval.reduce_zero_label,
     )
