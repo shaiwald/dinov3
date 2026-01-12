@@ -57,6 +57,7 @@ def evaluate_segmentation_model(
     num_classes,
     autocast_dtype,
     reduce_zero_label,
+    wandb_vis_batch_limit,
 ):
     segmentation_model = segmentation_model.to(device)
     segmentation_model.eval()
@@ -86,11 +87,11 @@ def evaluate_segmentation_model(
         # === WANDB VISUALIZATION ===
         # =========================================================
         # Condition: Only Main Process AND Only the First Batch (i == 0)
-        if is_main_process() and i == 0:
+        wandb_should_log = (wandb_vis_batch_limit is None) or (i < wandb_vis_batch_limit)
+        if is_main_process() and wandb_should_log and wandb.run is not None:
             try:
                 # 1. Prepare Image
-                # batch_img[0] is the first scale tensor: (1, 3, H, W)
-                # We take [0] again to get (3, H, W)
+                # batch_img[0] is the CPU tensor list. batch_img[0][0] is the first scale.
                 img_vis = batch_img[0][0].float().detach().cpu().permute(1, 2, 0).numpy()
                 img_vis = (img_vis * np.array([0.229, 0.224, 0.225])) + np.array([0.485, 0.456, 0.406])
                 img_vis = np.clip(img_vis * 255, 0, 255).astype(np.uint8)
@@ -101,15 +102,26 @@ def evaluate_segmentation_model(
                 gt_vis = gt.detach().cpu().squeeze().numpy()
                 pred_vis = aggregated_preds.detach().cpu().squeeze().numpy()
 
+                # 3. Setup Naming
+                if wandb_vis_batch_limit is None:
+                    # Inference Mode: Unique key for every batch
+                    log_key = "Test/inference_all"
+                    caption = f"Inference_Image_{i}: Input | GT | Pred"
+                else:
+                    # Training Mode: Fixed key, overwrites itself
+                    log_key = "Val/training_preview"
+                    caption = f"Preview_Batch_{i}: Input | GT | Pred"
+
+                # 4. Log
                 wandb.log({
-                    "Val/Sliding_Window_Result": wandb.Image(
+                    log_key: [wandb.Image(
                         np.concatenate([
                             img_vis,
                             colorize_mask(gt_vis),
                             colorize_mask(pred_vis)
                         ], axis=1),
-                        caption=f"Epoch Validation - Batch {i}: Input | GT | Pred"
-                    )
+                        caption=caption
+                    )]
                 })
             except Exception as e:
                 logger.warning(f"Visualization failed: {e}")
@@ -191,7 +203,7 @@ def test_segmentation(backbone, config):
     )
 
     # 3- make inference
-    return evaluate_segmentation_model(
+    metric_values_dict = evaluate_segmentation_model(
         segmentation_model=segmentation_model,
         test_dataloader=test_dataloader,
         device=device,
@@ -201,4 +213,11 @@ def test_segmentation(backbone, config):
         num_classes=config.decoder_head.num_classes,
         autocast_dtype=config.model_dtype.autocast_dtype,
         reduce_zero_label=config.eval.reduce_zero_label,
+        wandb_vis_batch_limit=None,
     )
+
+    # Log Metrics to WandB
+    if is_main_process():
+        wandb.log({f"Test/{k}": v for k, v in metric_values_dict.items()})
+
+    return metric_values_dict
