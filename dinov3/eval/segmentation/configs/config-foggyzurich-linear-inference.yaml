@@ -1,6 +1,5 @@
 # Config for Foggy Zurich Inference using Linear Head
 
-bs: 8                   # Batch size for inference
 metric_to_save: 'mIoU'
 model_dtype: FLOAT32
 
