@@ -1,0 +1,37 @@
+# Config for Foggy Cityscapes Inference using Linear Head
+
+bs: 8                 # Batch size for inference
+metric_to_save: 'mIoU'
+model_dtype: FLOAT32
+
+datasets:
+  # Update this to where your Foggy Cityscapes images are located.
+  # Usually expects 'leftImg8bit_foggy' and 'gtFine' inside.
+  root: "/home/shai/datasets/cityscapes_foggy"
+  val: "Cityscapes:split=VAL" # Uses standard Cityscapes validation split
+
+decoder_head:
+  type: "linear"
+  backbone_out_layers: LAST
+  use_cls_token: False
+  use_batchnorm: True
+  use_backbone_norm: True
+  num_classes: 19            # Same classes as standard Cityscapes
+
+transforms:
+  eval:
+    img_size: [512, 1024]    # 1:2 aspect ratio
+
+eval:
+  compute_metric_per_image: False
+  reduce_zero_label: False
+  mode: "slide"              # Sliding window is best for potentially blurry boundaries
+  crop_size: [512, 1024]
+  stride: [341, 682]
+  use_tta: False             # Set to True if you want Test Time Augmentation
+
+wandb:
+  project: "dinov3-cityscapes-linear"
+  name: "inference-foggy-cityscapes"
+  enabled: True
+
