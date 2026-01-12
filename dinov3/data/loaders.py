@@ -10,7 +10,7 @@ from typing import Any, Callable, List, Optional, TypeVar
 import torch
 from torch.utils.data import Sampler
 
-from .datasets import ADE20K, CocoCaptions, ImageNet, ImageNet22k, NYU, Cityscapes, FoggyZurich
+from .datasets import ADE20K, CocoCaptions, ImageNet, ImageNet22k, NYU, Cityscapes, FoggyZurich, ACDC
 from .samplers import EpochSampler, InfiniteSampler, ShardedInfiniteSampler
 
 logger = logging.getLogger("dinov3")
@@ -51,7 +51,7 @@ def _parse_dataset_str(dataset_str: str):
 
     for token in tokens[1:]:
         key, value = token.split("=")
-        assert key in ("root", "extra", "split")
+        assert key in ("root", "extra", "split", "condition")
         kwargs[key] = value
 
     if name == "ImageNet":
@@ -68,6 +68,8 @@ def _parse_dataset_str(dataset_str: str):
         class_ = Cityscapes
     elif name == "FoggyZurich":
         class_ = FoggyZurich
+    elif name == "ACDC":
+        class_ = ACDC
     elif name == "CocoCaptions":
         class_ = CocoCaptions
         if "split" in kwargs:

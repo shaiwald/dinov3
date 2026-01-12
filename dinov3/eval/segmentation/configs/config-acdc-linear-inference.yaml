@@ -1,0 +1,38 @@
+# Config for Foggy Zurich Inference using Linear Head
+
+metric_to_save: 'mIoU'
+model_dtype: FLOAT32
+
+datasets:
+  # Path where your 'RGB' and 'lists_file_names' folders are located
+  root: "/home/shai/datasets/ACDC"
+
+  # Get val data for fog condition only.
+#  val: "ACDC:split=VAL:condition=fog"
+  val: "ACDC:split=VAL_REF"
+decoder_head:
+  type: "linear"
+  backbone_out_layers: LAST
+  use_cls_token: False
+  use_batchnorm: True
+  use_backbone_norm: True
+  num_classes: 19            # acdc uses standard Cityscapes classes
+
+transforms:
+  eval:
+    #ACDC images are 1920×1080 (similar to Cityscapes). Resizing to 512x1024 is a standard practice for evaluation to match the training resolution of most Cityscapes models
+    img_size: [512, 1024]
+
+eval:
+  compute_metric_per_image: False
+  reduce_zero_label: False
+  mode: "slide"              # Sliding window evaluation
+  crop_size: [512, 1024]
+  stride: [341, 682]
+  use_tta: False
+
+wandb:
+  project: "dinov3-cityscapes-linear"
+#  name: "inference-acdc-fog"
+  name: "inference-acdc-ref"
+  enabled: True
