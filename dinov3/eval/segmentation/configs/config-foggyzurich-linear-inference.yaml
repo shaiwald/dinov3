@@ -1,0 +1,40 @@
+# Config for Foggy Zurich Inference using Linear Head
+
+bs: 8                   # Batch size for inference
+metric_to_save: 'mIoU'
+model_dtype: FLOAT32
+
+datasets:
+  # Path where your 'RGB' and 'lists_file_names' folders are located
+  root: "/home/shai/datasets/Foggy_Zurich"
+
+  # This calls the FoggyZurich class we created.
+  # Our code maps 'VAL' -> 'testv2' (the 40 labeled images).
+  val: "FoggyZurich:split=VAL"
+
+decoder_head:
+  type: "linear"
+  backbone_out_layers: LAST
+  use_cls_token: False
+  use_batchnorm: True
+  use_backbone_norm: True
+  num_classes: 19            # Foggy Zurich uses standard Cityscapes classes
+
+transforms:
+  eval:
+    # Foggy Zurich images are 1920x1080.
+    # We resize to 512x1024 to match standard Cityscapes inference resolution.
+    img_size: [512, 1024]
+
+eval:
+  compute_metric_per_image: False
+  reduce_zero_label: False
+  mode: "slide"              # Sliding window evaluation
+  crop_size: [512, 1024]
+  stride: [341, 682]
+  use_tta: False
+
+wandb:
+  project: "dinov3-cityscapes-linear"
+  name: "inference-foggy-zurich"
+  enabled: True

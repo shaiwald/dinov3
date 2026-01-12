@@ -9,3 +9,4 @@ from .image_net import ImageNet
 from .image_net_22k import ImageNet22k
 from .nyu import NYU
 from .cityscapes import Cityscapes
+from .foggy_zurich import FoggyZurich
