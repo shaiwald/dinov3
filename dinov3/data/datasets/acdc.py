@@ -67,9 +67,6 @@ def _load_acdc_paths(root: str, split: _Split, condition: Optional[str] = None) 
                 continue
 
             for file_name in sorted(os.listdir(seq_img_dir)):
-                # Filter for valid images
-                if not file_name.endswith("_rgb_anon.png") and not file_name.endswith("_rgb.png"):
-                    continue
 
                 # Construct Ground Truth Filename
                 # Robust replacement for both anon and non-anon images
@@ -77,6 +74,10 @@ def _load_acdc_paths(root: str, split: _Split, condition: Optional[str] = None) 
                     target_name = file_name.replace("_rgb_anon.png", "_gt_labelTrainIds.png")
                 elif "_rgb.png" in file_name:
                     target_name = file_name.replace("_rgb.png", "_gt_labelTrainIds.png")
+                elif "_rgb_ref_anon.png" in file_name:
+                    target_name = file_name.replace("_rgb_ref_anon.png", "_gt_ref_labelTrainIds.png")
+                elif "_rgb_ref.png" in file_name:
+                    target_name = file_name.replace("_rgb_ref.png", "_gt_ref_labelTrainIds.png")
                 else:
                     continue
 

@@ -32,7 +32,7 @@ eval:
   use_tta: False
 
 wandb:
-  project: "dinov3-cityscapes-linear"
-#  name: "inference-acdc-fog"
-  name: "inference-acdc-ref"
+  project: "dinov3-acdc-linear"
+#  name: "inference-acdc-fog-trained-on-fog"
+  name: "inference-acdc-ref-trained-on-fog"
   enabled: True
