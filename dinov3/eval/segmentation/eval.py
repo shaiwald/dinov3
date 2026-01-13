@@ -57,7 +57,7 @@ def evaluate_segmentation_model(
     num_classes,
     autocast_dtype,
     reduce_zero_label,
-    wandb_vis_batch_limit,
+    wandb_vis_batch_limit=0, #visualization of only the First Batch (i == 0)
 ):
     segmentation_model = segmentation_model.to(device)
     segmentation_model.eval()
@@ -86,8 +86,7 @@ def evaluate_segmentation_model(
         # =========================================================
         # === WANDB VISUALIZATION ===
         # =========================================================
-        # Condition: Only Main Process AND Only the First Batch (i == 0)
-        wandb_should_log = (wandb_vis_batch_limit is None) or (i < wandb_vis_batch_limit)
+        wandb_should_log = (wandb_vis_batch_limit is None) or (i <= wandb_vis_batch_limit)
         if is_main_process() and wandb_should_log and wandb.run is not None:
             try:
                 # 1. Prepare Image
